@@ -9,13 +9,12 @@ bool ble_ready = false;
 const static GapAdvertisingData::Appearance_t APPEARANCE = (GapAdvertisingData::Appearance_t) 0x26dc;
 const static uint8_t COMPLETE_NAME[] = {
     'D', 'E', 'F', 'C', 'O', 'N', 'F', 'u', 'r', 's'};
-
 const static uint8_t BEACON_AWOO[] = {
-    0xff, 0x71, 0xa0, 0xff, 0xff, 0x40, 0xff, 0xff };
+    0xff, 0x71, 0xa0, 0x11, 0x02, 0x3f, 0x10, 0x02 };
 const static uint8_t BEACON_EMOTE_BOOP[] = {
     0xff, 0x71, 0xb2, 0x00, 0x00, 0x62, 0x6f, 0x6f, 0x70 };
 const static uint8_t BEACON_EMOTE_OWO[] = {
-    0xff, 0x71, 0xb2, 0x00, 0x00, 0x62, 0x6f, 0x7f, 0x6f };
+    0xff, 0x71, 0xb2, 0xe6, 0x21, 0x5e, 0x2e, 0x5e };
 
 
 /**
@@ -49,9 +48,37 @@ void bleInitComplete(BLE::InitializationCompleteCallbackContext *params)
     }
 
     ble_ready = 1;
+    uBit.serial.printf("BLE ready\r\n");
 }
 
-int send_beacon(const uint8_t payload[]) {
+GapAdvertisingData make_awoo_advdata(){
+    GapAdvertisingData advData;
+    advData.addAppearance(APPEARANCE);
+    advData.addFlags(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    advData.addData(GapAdvertisingData::COMPLETE_LOCAL_NAME, COMPLETE_NAME, sizeof(COMPLETE_NAME));
+    advData.addData(GapAdvertisingData::MANUFACTURER_SPECIFIC_DATA, BEACON_AWOO, sizeof(BEACON_AWOO));
+    return advData;
+}
+
+GapAdvertisingData make_boop_advdata(){
+    GapAdvertisingData advData;
+    advData.addAppearance(APPEARANCE);
+    advData.addFlags(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    advData.addData(GapAdvertisingData::COMPLETE_LOCAL_NAME, COMPLETE_NAME, sizeof(COMPLETE_NAME));
+    advData.addData(GapAdvertisingData::MANUFACTURER_SPECIFIC_DATA, BEACON_EMOTE_BOOP, sizeof(BEACON_EMOTE_BOOP));
+    return advData;
+}
+
+GapAdvertisingData make_owo_advdata(){
+    GapAdvertisingData advData;
+    advData.addAppearance(APPEARANCE);
+    advData.addFlags(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    advData.addData(GapAdvertisingData::COMPLETE_LOCAL_NAME, COMPLETE_NAME, sizeof(COMPLETE_NAME));
+    advData.addData(GapAdvertisingData::MANUFACTURER_SPECIFIC_DATA, BEACON_EMOTE_OWO, sizeof(BEACON_EMOTE_OWO)+1);
+    return advData;
+}
+
+int send_beacon(GapAdvertisingData advData) {
 
     if (!ble_ready) {
         return 1;
@@ -59,53 +86,62 @@ int send_beacon(const uint8_t payload[]) {
 
     BLE& ble = BLE::Instance(BLE::DEFAULT_INSTANCE);
 
-    ble.stopAdvertising();
-
-    // Set some flags
-    ble.gap().accumulateAdvertisingPayload(
-            GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE
+    GapAdvertisingParams advParams(
+            GapAdvertisingParams::ADV_NON_CONNECTABLE_UNDIRECTED, // type of advertising
+            1000, // interval in ms
+            1 // Timeout in second
     );
-    ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_NON_CONNECTABLE_UNDIRECTED);
 
-    GapAdvertisingData advData;
-    advData.addAppearance(APPEARANCE);
-    advData.addFlags(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
-    advData.addData(GapAdvertisingData::COMPLETE_LOCAL_NAME, COMPLETE_NAME, sizeof(COMPLETE_NAME));
-    advData.addData(GapAdvertisingData::MANUFACTURER_SPECIFIC_DATA, payload, sizeof(payload));
+    ble.gap().setAdvertisingParams(advParams);
     ble.gap().setAdvertisingPayload(advData);
 
-    /* Set advertising interval. Longer interval == longer battery life */
-    ble.gap().setAdvertisingInterval(200); /* 200ms */
-
     /* Start advertising */
+    uBit.serial.printf("Start adv\r\n");
     ble.gap().startAdvertising();
-    uBit.sleep(1000);
-
-    ble.gap().stopAdvertising();
+//    uBit.sleep(3000);
+//    uBit.serial.printf("Stop adv\r\n");
+//    ble.gap().stopAdvertising();
 
     return 0;
 }
 
 void onButtonA(MicroBitEvent e)
 {
-    uBit.serial.printf("OwO \n");
-    send_beacon(BEACON_EMOTE_OWO);
+    BLE& ble = BLE::Instance(BLE::DEFAULT_INSTANCE);
+    uBit.serial.printf("OwO\r\n");
+    ble.stopAdvertising();
+    ble.gap().accumulateAdvertisingPayload(
+           GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    ble.gap().setAdvertisingType(GapAdvertisingParams::ADV_NON_CONNECTABLE_UNDIRECTED);
+    GapAdvertisingData advData;
+    advData.addAppearance(APPEARANCE);
+    advData.addFlags(GapAdvertisingData::BREDR_NOT_SUPPORTED | GapAdvertisingData::LE_GENERAL_DISCOVERABLE);
+    advData.addData(GapAdvertisingData::COMPLETE_LOCAL_NAME, COMPLETE_NAME, sizeof(COMPLETE_NAME));
+    advData.addData(GapAdvertisingData::MANUFACTURER_SPECIFIC_DATA, BEACON_EMOTE_OWO, sizeof(BEACON_EMOTE_OWO));
+    ble.gap().setAdvertisingPayload(advData);
+    ble.gap().setAdvertisingInterval(200); /* 200ms */
+    ble.gap().startAdvertising();
+    uBit.sleep(1000);
+    ble.gap().stopAdvertising();
+
 }
 
 void onButtonB(MicroBitEvent e)
 {
-    uBit.serial.printf("BooP\n");
-    send_beacon(BEACON_EMOTE_BOOP);
+    uBit.serial.printf("BooP\r\n");
+    send_beacon(make_boop_advdata());
 }
 
 void onButtonAB(MicroBitEvent e)
 {
-    uBit.serial.printf("AWOO \n");
-    send_beacon(BEACON_AWOO);
+    uBit.serial.printf("AWOO\r\n");
+    send_beacon(make_awoo_advdata());
 }
 
 int main(void)
 {
+    uBit.serial.printf("\033[0;0H"); // set cursor to 0,0
+    uBit.serial.printf("\033[2J"); // clear screen
     BLE& ble = BLE::Instance(BLE::DEFAULT_INSTANCE);
     /* Initialize BLE baselayer, always do this first! */
     ble.init(bleInitComplete);
